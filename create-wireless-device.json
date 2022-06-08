@@ -1,0 +1,20 @@
+{
+  "Type": "CoAP",
+  "Name": "MyCoapDevice",
+  "Description": "This is my first CoAP device",
+  "DestinationName": "coaphelloworld_CoAPDestination_node",
+  "Cellular": {
+    "Imei": "9956798246756221",
+    "DtlsV1_2": {
+      "PreSharedKeyIdentity": "gettingstartedcoapdeviceimei9956798246756221",
+      "PreSharedKeySecret": "24161502661773558417525102319527"
+    }
+  },
+  "WiFi": {
+    "MacAddress": "995679824675",
+    "DtlsV1_2": {
+      "PreSharedKeyIdentity": "gettingstartedcoapdevicemac995679824675",
+      "PreSharedKeySecret": "24161502661773558417525102319527"
+    }
+  }
+}

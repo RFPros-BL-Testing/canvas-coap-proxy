@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Canvas - CoAP Proxy
+
+Parameters:
+  AccountPrefix:
+    Type: String
+  AcmCertificateArn:
+    Type: String
+  ApplicationName:
+    Type: String
+  ArtifactBucketName:
+    Type: String
+  ConnectionArn:
+    Type: String
+  Environment:
+    Type: String
+  HostedZoneId:
+    Type: String
+  OutpostBucketName:
+    Type: String
+  SslDomainName:
+    Type: String
+  Stack:
+    Type: String
+
+Resources:
+  FoundationStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        AccountPrefix: !Ref AccountPrefix
+        ApplicationName: !Ref ApplicationName
+        ArtifactBucketName: !Ref ArtifactBucketName
+        Environment: !Ref Environment
+        ResourceGroup: !Sub ${Stack}-${Environment}
+        Stack: !Ref Stack
+      Tags:
+        - Key: ResourceGroup
+          Value: !Sub ${Stack}-${Environment}
+      TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnFoundationTemplate.yaml
+      TimeoutInMinutes: 5
+
+  # S3 Buckets
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: FoundationStack
+    Properties:
+      Bucket: !Ref ArtifactBucketName
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:*
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${ArtifactBucketName}
+              - !Sub arn:aws:s3:::${ArtifactBucketName}/*
+            Principal:
+              AWS:
+                - Fn::GetAtt: [FoundationStack, Outputs.CodeBuildProjectRoleArn]
+                - Fn::GetAtt: [FoundationStack, Outputs.CodePipelineRoleArn]
+
+  # # VPC
+  # VpcStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       ApplicationName: !Ref ApplicationName
+  #       Environment: !Ref Environment
+  #       HostedZoneId: !Ref HostedZoneId
+  #       AcmCertificateArn: !Ref AcmCertificateArn
+  #       SslDomainName: !Ref SslDomainName
+  #       Stack: !Ref Stack
+  #     Tags:
+  #       - Key: ResourceGroup
+  #         Value: !Sub ${Stack}-${Environment}
+  #     TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnVpcTemplate.yaml
+  #     TimeoutInMinutes: 10
+
+  # # Container Service
+  # EcsClusterStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn: VpcStack
+  #   Properties:
+  #     Parameters:
+  #       ApplicationName: !Sub ${Stack}-proxy
+  #       Environment: !Ref Environment
+  #       OutpostBucketName: !Ref OutpostBucketName
+  #       ContainerName: !Sub ${ApplicationName}-${Environment}
+  #     Tags:
+  #       - Key: ResourceGroup
+  #         Value: !Sub ${Stack}-${Environment}
+  #     TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnEcsClusterTemplate.yaml
+  #     TimeoutInMinutes: 15
+
+  # # ProxyPipelineStack
+  # # Builds the proxy container
+  # ProxyPipelineStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       ApplicationName: !Sub ${Stack}-proxy
+  #       ArtifactBucketName: !Ref ArtifactBucketName
+  #       CodeBuildProjectRoleArn:
+  #         Fn::GetAtt: [FoundationStack, Outputs.CodeBuildProjectRoleArn]
+  #       Environment: !Ref Environment
+  #       ConnectionArn: !Ref ConnectionArn
+  #       FullRepositoryId: !Sub RFPros-BL-Testing/${ApplicationName}
+  #       CaliforniumRepositoryId: !Sub RFPros-BL-Testing/californium
+  #       KMSKeyArn:
+  #         Fn::GetAtt: [FoundationStack, Outputs.KMSKeyArn]
+  #       PipeLineRoleArn:
+  #         Fn::GetAtt: [FoundationStack, Outputs.CodePipelineRoleArn]
+  #       Stack: !Ref Stack
+  #       ResourceGroup: !Sub ${Stack}-${Environment}
+  #       ClusterName:
+  #         Fn::GetAtt: [EcsClusterStack, Outputs.ClusterName]
+  #       ServiceName:
+  #         Fn::GetAtt: [EcsClusterStack, Outputs.ServiceName]
+  #       EcrRepositoryUri:
+  #         Fn::GetAtt: [EcsClusterStack, Outputs.EcrRepositoryUri]
+
+  #     Tags:
+  #       - Key: ResourceGroup
+  #         Value: !Sub ${Stack}-${Environment}
+  #     TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnCodePipelineTemplate.yaml
+  #     TimeoutInMinutes: 5
+# Outputs:

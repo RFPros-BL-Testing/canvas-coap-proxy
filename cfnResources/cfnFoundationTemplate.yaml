@@ -1,0 +1,323 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Foundation
+Parameters:
+  ResourceGroup:
+    Type: String
+  AccountPrefix:
+    Type: String
+  ApplicationName:
+    Type: String
+  ArtifactBucketName:
+    Type: String
+  Environment:
+    Type: String
+  Stack:
+    Type: String
+
+Resources:
+  CodeBuildProjectRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+      MaxSessionDuration: 3600
+      Path: !Sub /${ApplicationName}/
+      RoleName: !Sub ${ApplicationName}-${Environment}-codebuild-role
+
+  CodeBuildProjectPolicy:
+    Type: AWS::IAM::Policy
+    DependsOn:
+      - KMSKey
+    Properties:
+      PolicyName: !Sub ${ApplicationName}-${Environment}-codebuild-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetBucketPolicy
+              - s3:GetObject
+              - s3:ListBucket
+              - s3:GetObjectVersion
+              - s3:GetBucketAcl
+              - s3:GetBucketLocation
+              - s3:DeleteObject
+            Resource:
+              - !Join ["", ["arn:aws:s3:::", !Ref ArtifactBucketName, "/*"]]
+              - !Join ["", ["arn:aws:s3:::", !Ref ArtifactBucketName]]
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: arn:aws:logs:*:*:*
+          - Effect: Allow
+            Action:
+              - kms:*
+            Resource: !GetAtt KMSKey.Arn
+          - Effect: Allow
+            Action:
+              - ssm:GetParameters
+            Resource: !Sub arn:aws:ssm:*:${AWS::AccountId}:parameter/${Stack}-${Environment}/*
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:CompleteLayerUpload
+              - ecr:GetDownloadUrlForLayer
+              - ecr:InitiateLayerUpload
+              - ecr:PutImage
+              - ecr:UploadLayerPart
+            Resource: "*"
+      Roles:
+        - !Ref CodeBuildProjectRole
+
+  CloudFormationDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+
+      MaxSessionDuration: 3600
+      Path: !Sub /${ApplicationName}/
+      RoleName: !Sub ${ApplicationName}-${Environment}-cloudformation-role
+
+  CloudFormationDeploymentPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      Roles:
+        - !Ref CloudFormationDeploymentRole
+      PolicyName: !Sub ${ApplicationName}-${Environment}-cloudformation-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:*
+            Resource: arn:aws:logs:*:*:*
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:GetBucketVersioning
+              - s3:GetObjectVersion
+            Resource: arn:aws:s3:::*
+          - Effect: Allow
+            Action:
+              - route53:*
+              - apigateway:*
+              - codepipeline:UpdatePipeline
+              - codepipeline:GetPipeline
+              - events:DescribeRule
+              - events:PutRule
+              - events:DeleteRule
+              - events:RemoveTargets
+              - events:PutTargets
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - codebuild:UpdateProject
+              - codebuild:BatchGetProjects
+              - codebuild:UpdateProject
+              - codebuild:BatchGetProjects
+            Resource:
+              - !Sub arn:aws:codebuild:*:${AWS::AccountId}:project/*
+          - Effect: Allow
+            Action:
+              - codedeploy:CreateApplication
+              - codedeploy:RegisterApplicationRevision
+              - codedeploy:DeleteApplication
+              - cloudformation:CreateChangeSet
+              - codedeploy:CreateDeployment
+              - codedeploy:GetDeployment
+              - codedeploy:CreateDeploymentGroup
+            Resource:
+              - arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31
+              - !Sub arn:aws:codedeploy:*:${AWS::AccountId}:application:*
+              - !Sub arn:aws:codedeploy:*:${AWS::AccountId}:deploymentgroup:*
+          - Effect: Allow
+            Action: codedeploy:GetDeploymentConfig
+            Resource: !Sub arn:aws:codedeploy:*:${AWS::AccountId}:deploymentconfig:*
+          - Effect: Allow
+            Action: lambda:*
+            Resource:
+              - !Sub arn:aws:lambda:*:${AWS::AccountId}:function:*
+              - !Sub arn:aws:lambda:*:${AWS::AccountId}:layer*
+          - Effect: Allow
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+              - kms:PutKeyPolicy
+              - kms:GenerateDataKey
+            Resource: !GetAtt KMSKey.Arn
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+              - iam:GetRole
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:PutRolePolicy
+              - iam:DetachRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:AttachRolePolicy
+              - iam:UpdateAssumeRolePolicy
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/${ApplicationName}/*
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:GetDownloadUrlForLayer
+              - ec2:*
+            Resource: "*"
+  KMSKey:
+    Type: AWS::KMS::Key
+    DependsOn:
+      - CodeBuildProjectRole
+    Properties:
+      Description: Used by Assumed Roles in Dev/Build accounts to Encrypt/Decrypt code
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: !Ref AWS::StackName
+        Statement:
+          - Sid: Allows admin of the key
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - "kms:Create*"
+              - "kms:Describe*"
+              - "kms:Enable*"
+              - "kms:List*"
+              - "kms:Put*"
+              - "kms:Update*"
+              - "kms:Revoke*"
+              - "kms:Disable*"
+              - "kms:Get*"
+              - "kms:Delete*"
+              - "kms:ScheduleKeyDeletion"
+              - "kms:CancelKeyDeletion"
+            Resource: "*"
+          - Sid: Allow use of the key for CryptoGraphy Lambda
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub arn:aws:iam::${AWS::AccountId}:root
+                - !GetAtt CodeBuildProjectRole.Arn
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+              - kms:TagResource
+            Resource: "*"
+
+  KMSAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/codepipeline-crossaccounts-${ApplicationName}-${Environment}
+      TargetKeyId: !Ref KMSKey
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    DependsOn: KMSKey
+    Properties:
+      RoleName: !Sub ${ApplicationName}-${Environment}-codepipeline-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: !Sub /${ApplicationName}/
+      Policies:
+        - PolicyName: !Sub ${ApplicationName}-${Environment}-codepipeline-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codepipeline:*
+                  - iam:ListRoles
+                  - cloudformation:Describe*
+                  - cloudFormation:List*
+                  - codecommit:List*
+                  - codecommit:Get*
+                  - codecommit:GitPull
+                  - codecommit:UploadArchive
+                  - codecommit:CancelUploadArchive
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:SetStackPolicy
+                  - cloudformation:ValidateTemplate
+                  - iam:PassRole
+                  - s3:ListAllMyBuckets
+                  - s3:GetBucketLocation
+                  - codestar-connections:*
+                  - ecs:*
+                Resource:
+                  - "*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetBucketPolicy
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Join ["", ["arn:aws:s3:::", !Ref ArtifactBucketName, "/*"]]
+                  - !Join ["", ["arn:aws:s3:::", !Ref ArtifactBucketName]]
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                  - kms:GenerateDataKey
+                Resource: !GetAtt KMSKey.Arn
+Outputs:
+  KMSKeyArn:
+    Value: !GetAtt [KMSKey, Arn]
+    Export:
+      Name: !Sub ${ApplicationName}-${Environment}-KMSKeyArn
+
+  CodePipelineRoleArn:
+    Value: !GetAtt [CodePipelineRole, Arn]
+    Export:
+      Name: !Sub ${ApplicationName}-${Environment}-CodePipelineRoleArn
+
+  CodeBuildProjectRoleArn:
+    Value: !GetAtt [CodeBuildProjectRole, Arn]
+    Export:
+      Name: !Sub ${ApplicationName}-${Environment}-CodeBuildProjectRoleArn
+
+  CloudFormationDeploymentRoleArn:
+    Value: !GetAtt [CloudFormationDeploymentRole, Arn]
+    Export:
+      Name: !Sub ${ApplicationName}-${Environment}-CloudFormationDeploymentRoleArn
