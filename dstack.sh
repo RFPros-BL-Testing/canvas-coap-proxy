@@ -18,7 +18,7 @@ echo "Fetched ACCOUNT: $ACCOUNT"
 
 # Define S3 Buckets
 ACCOUNTPREFIX=$(echo "$ACCOUNT" | cut -c1-4)
-S3ARTIFACTS="$ACCOUNTPREFIX-artifacts-$ENV"
+S3ARTIFACTS="$ACCOUNTPREFIX-$APPLICATIONNAME-artifacts-$ENV"
 
 # upload the artifacts to the s3 bucket
 aws s3 sync ./cfnResources "s3://$S3ARTIFACTS/cloudformation" --profile $PROFILE
@@ -35,6 +35,8 @@ else
   CODECONNECTION="arn:aws:codestar-connections:us-east-1:278482835815:connection/58381eb0-3cee-4ae2-a0ff-f692be51e12e"
 fi
 
+echo "$S3ARTIFACTS"
+
 aws cloudformation deploy \
   --profile "$PROFILE" \
   --template-file "cfnResources/cfnStackTemplate.yaml" \
@@ -47,7 +49,6 @@ aws cloudformation deploy \
     "ConnectionArn=$CODECONNECTION" \
     "Environment=$ENV" \
     "HostedZoneId=$HOSTEDZONEID" \
-    "OutpostBucketName=$ACCOUNTPREFIX-$STACK-file-service-$ENV" \
     "SslDomainName=$SSLDOMAIN" \
     "AcmCertificateArn=$ACMARN" \
     "Stack=$STACK"

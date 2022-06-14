@@ -60,69 +60,92 @@ Resources:
                 - Fn::GetAtt: [FoundationStack, Outputs.CodeBuildProjectRoleArn]
                 - Fn::GetAtt: [FoundationStack, Outputs.CodePipelineRoleArn]
 
-  # # VPC
-  # VpcStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     Parameters:
-  #       ApplicationName: !Ref ApplicationName
-  #       Environment: !Ref Environment
-  #       HostedZoneId: !Ref HostedZoneId
-  #       AcmCertificateArn: !Ref AcmCertificateArn
-  #       SslDomainName: !Ref SslDomainName
-  #       Stack: !Ref Stack
-  #     Tags:
-  #       - Key: ResourceGroup
-  #         Value: !Sub ${Stack}-${Environment}
-  #     TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnVpcTemplate.yaml
-  #     TimeoutInMinutes: 10
+  # VPC
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        ApplicationName: !Ref ApplicationName
+        Environment: !Ref Environment
+        Stack: !Ref Stack
+      Tags:
+        - Key: ResourceGroup
+          Value: !Sub ${Stack}-${Environment}
+      TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnVpcTemplate.yaml
+      TimeoutInMinutes: 10
 
-  # # Container Service
-  # EcsClusterStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   DependsOn: VpcStack
-  #   Properties:
-  #     Parameters:
-  #       ApplicationName: !Sub ${Stack}-proxy
-  #       Environment: !Ref Environment
-  #       OutpostBucketName: !Ref OutpostBucketName
-  #       ContainerName: !Sub ${ApplicationName}-${Environment}
-  #     Tags:
-  #       - Key: ResourceGroup
-  #         Value: !Sub ${Stack}-${Environment}
-  #     TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnEcsClusterTemplate.yaml
-  #     TimeoutInMinutes: 15
+  # ELB
+  ElbStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        AcmCertificateArn: !Ref AcmCertificateArn
+        ApplicationName: !Ref ApplicationName
+        Environment: !Ref Environment
+        HostedZoneId: !Ref HostedZoneId
+        PublicSubnet1:
+          Fn::GetAtt: [VpcStack, Outputs.PublicSubnet1]
+        PublicSubnet2:
+          Fn::GetAtt: [VpcStack, Outputs.PublicSubnet2]
+        SslDomainName: !Ref SslDomainName
+        Stack: !Ref Stack
+        VpcId:
+          Fn::GetAtt: [VpcStack, Outputs.VpcId]
 
-  # # ProxyPipelineStack
-  # # Builds the proxy container
-  # ProxyPipelineStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     Parameters:
-  #       ApplicationName: !Sub ${Stack}-proxy
-  #       ArtifactBucketName: !Ref ArtifactBucketName
-  #       CodeBuildProjectRoleArn:
-  #         Fn::GetAtt: [FoundationStack, Outputs.CodeBuildProjectRoleArn]
-  #       Environment: !Ref Environment
-  #       ConnectionArn: !Ref ConnectionArn
-  #       FullRepositoryId: !Sub RFPros-BL-Testing/${ApplicationName}
-  #       CaliforniumRepositoryId: !Sub RFPros-BL-Testing/californium
-  #       KMSKeyArn:
-  #         Fn::GetAtt: [FoundationStack, Outputs.KMSKeyArn]
-  #       PipeLineRoleArn:
-  #         Fn::GetAtt: [FoundationStack, Outputs.CodePipelineRoleArn]
-  #       Stack: !Ref Stack
-  #       ResourceGroup: !Sub ${Stack}-${Environment}
-  #       ClusterName:
-  #         Fn::GetAtt: [EcsClusterStack, Outputs.ClusterName]
-  #       ServiceName:
-  #         Fn::GetAtt: [EcsClusterStack, Outputs.ServiceName]
-  #       EcrRepositoryUri:
-  #         Fn::GetAtt: [EcsClusterStack, Outputs.EcrRepositoryUri]
+      Tags:
+        - Key: ResourceGroup
+          Value: !Sub ${Stack}-${Environment}
+      TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnElbTemplate.yaml
+      TimeoutInMinutes: 15
 
-  #     Tags:
-  #       - Key: ResourceGroup
-  #         Value: !Sub ${Stack}-${Environment}
-  #     TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnCodePipelineTemplate.yaml
-  #     TimeoutInMinutes: 5
+  # Container Service
+  EcsClusterStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - VpcStack
+      - ElbStack
+    Properties:
+      Parameters:
+        ApplicationName: !Sub ${ApplicationName}
+        Environment: !Ref Environment
+        OutpostBucketName: !Ref OutpostBucketName
+        ContainerName: !Sub ${ApplicationName}-${Environment}
+      Tags:
+        - Key: ResourceGroup
+          Value: !Sub ${Stack}-${Environment}
+      TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnEcsClusterTemplate.yaml
+      TimeoutInMinutes: 15
+
+  # ProxyPipelineStack
+  # Builds the proxy container
+  ProxyPipelineStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        ApplicationName: !Ref ApplicationName
+        ArtifactBucketName: !Ref ArtifactBucketName
+        CodeBuildProjectRoleArn:
+          Fn::GetAtt: [FoundationStack, Outputs.CodeBuildProjectRoleArn]
+        Environment: !Ref Environment
+        ConnectionArn: !Ref ConnectionArn
+        FullRepositoryId: !Sub RFPros-BL-Testing/${ApplicationName}
+        CaliforniumRepositoryId: !Sub RFPros-BL-Testing/californium
+        KMSKeyArn:
+          Fn::GetAtt: [FoundationStack, Outputs.KMSKeyArn]
+        PipeLineRoleArn:
+          Fn::GetAtt: [FoundationStack, Outputs.CodePipelineRoleArn]
+        Stack: !Ref Stack
+        ResourceGroup: !Sub ${Stack}-${Environment}
+        ClusterName:
+          Fn::GetAtt: [EcsClusterStack, Outputs.ClusterName]
+        ServiceName:
+          Fn::GetAtt: [EcsClusterStack, Outputs.ServiceName]
+        EcrRepositoryUri:
+          Fn::GetAtt: [EcsClusterStack, Outputs.EcrRepositoryUri]
+
+      Tags:
+        - Key: ResourceGroup
+          Value: !Sub ${Stack}-${Environment}
+      TemplateURL: !Sub https://${ArtifactBucketName}.s3.amazonaws.com/cloudformation/cfnCodePipelineTemplate.yaml
+      TimeoutInMinutes: 5
 # Outputs:

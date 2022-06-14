@@ -88,7 +88,7 @@ Resources:
               Configuration:
                 ConnectionArn: !Ref ConnectionArn
                 FullRepositoryId: !Ref FullRepositoryId # some-user/my-repo
-                BranchName: !Sub CC-${Environment}
+                BranchName: !Sub CCP-${Environment}
               OutputArtifacts:
                 - Name: ProxySourceArtifact
               RunOrder: 1
@@ -101,7 +101,7 @@ Resources:
               Configuration:
                 ConnectionArn: !Ref ConnectionArn
                 FullRepositoryId: !Ref CaliforniumRepositoryId # some-user/my-repo
-                BranchName: !Sub CFS-${Environment}
+                BranchName: !Sub cali-${Environment}
               OutputArtifacts:
                 - Name: CaliforniumSourceArtifact
               RunOrder: 1
