@@ -12,7 +12,7 @@ phases:
 
       # configure maven
       - wget https://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.tar.gz
-      - tar xf ./apache-maven-\*.tar.gz -C /opt
+      - tar xf ./apache-maven-3.8.6-bin.tar.gz -C /opt
       - ln -s /opt/apache-maven-3.8.6 /opt/maven
       - cp ./root/maven.sh /etc/profile.d/maven.sh
       - chmod +x /etc/profile.d/maven.sh
