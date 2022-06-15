@@ -2,10 +2,10 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      java: openjdk11
+      java: corretto11
     commands:
-      - yum install java-11-amazon-corretto-headless
-      # - PYTHON=python2 amazon-linux-extras install java-openjdk11
+      # - yum install java-11-amazon-corretto-headless
+      - PYTHON=python2 amazon-linux-extras install java-openjdk11
 
       # copy files from CaliforniumSourceArtifact
       - cp -R $CODEBUILD_SRC_DIR_CaliforniumSourceArtifact/. ./root/
