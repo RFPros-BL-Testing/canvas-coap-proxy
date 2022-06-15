@@ -21,10 +21,11 @@ phases:
 
       # Build jar
       - mvn clean install -DskipTests
+      - cd ..
 
   pre_build:
     commands:
-      - ls root
+      # - ls root
       - echo Logging in to Docker Hub...
       - echo $DockerPassword | docker login --username $DockerUsername --password-stdin
 

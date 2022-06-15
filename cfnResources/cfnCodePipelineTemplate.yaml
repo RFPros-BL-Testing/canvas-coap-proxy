@@ -69,7 +69,7 @@ Resources:
       Tags:
         - Key: ResourceGroup
           Value: !Ref ResourceGroup
-      TimeoutInMinutes: 15
+      TimeoutInMinutes: 30
 
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
