@@ -7,21 +7,26 @@ Parameters:
     Type: String
   ContainerName:
     Type: String
-  OutpostBucketName:
-    Type: String
 
 Resources:
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group for File Service Cluster
+      GroupDescription: Security Group for CoAP Proxy Service Cluster
       GroupName: !Sub ${ApplicationName}-${Environment}-SecurityGroup
       SecurityGroupIngress:
-        - SourceSecurityGroupId:
-            Fn::ImportValue: !Sub ${ApplicationName}-${Environment}-PublicHttpsSecurityGroup
+        - CidrIp: "0.0.0.0/0"
           FromPort: 8080
           ToPort: 8080
           IpProtocol: tcp
+        - CidrIp: "10.192.0.0/16"
+          FromPort: 5684
+          ToPort: 5684
+          IpProtocol: udp
+        - CidrIp: "10.192.0.0/16"
+          FromPort: 5683
+          ToPort: 5683
+          IpProtocol: udp
       SecurityGroupEgress:
         - CidrIp: "0.0.0.0/0"
           Description: Open HTTPS Outbound so ECR is reachable
@@ -70,6 +75,30 @@ Resources:
         - Key: ResourceGroup
           Value: !Ref ApplicationName
 
+  RepositoryHealthCheck:
+    Type: AWS::ECR::Repository
+    Properties:
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Expire untagged images",
+              "selection": {
+                "tagStatus": "untagged",
+                "countType": "imageCountMoreThan",
+                "countNumber": 1
+              },
+              "action": {
+                "type": "expire"
+              }
+            }]
+          }
+      RepositoryName: !Sub ${ApplicationName}-health-check-${Environment}
+      Tags:
+        - Key: ResourceGroup
+          Value: !Ref ApplicationName
+
   Service:
     Type: AWS::ECS::Service
     DependsOn:
@@ -93,10 +122,13 @@ Resources:
       TaskDefinition: !Ref Task
       LoadBalancers:
         - ContainerName: !Ref ContainerName
-          ContainerPort: 8080
+          ContainerPort: 5384
           TargetGroupArn:
             Fn::ImportValue: !Sub ${ApplicationName}-${Environment}-TargetGroupArn
-
+        # - ContainerName: !Sub health-check-${Environment}
+        #   ContainerPort: 8080
+        #   TargetGroupArn:
+        #     Fn::ImportValue: !Sub ${ApplicationName}-${Environment}-TargetGroupArn
   Task:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
@@ -104,24 +136,41 @@ Resources:
       - ServiceTaskRole
     Properties:
       ContainerDefinitions:
+        - Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RepositoryHealthCheck}:latest
+          Cpu: 0
+          Name: !Sub health-check-${Environment}
+          Essential: true
+          Environment:
+            - Name: Environment
+              Value: !Ref Environment
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${ApplicationName}-${Environment}-health-check-service
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
         - Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${Repository}:latest
           Cpu: 0
-          MemoryReservation: 1024
           Name: !Ref ContainerName
           Essential: true
           Environment:
             - Name: Environment
               Value: !Ref Environment
-            - Name: OutpostBucketName
-              Value: !Ref OutpostBucketName
             - Name: AWSRegion
               Value: !Ref AWS::Region
             - Name: AWSAccountId
               Value: !Ref AWS::AccountId
           PortMappings:
-            - ContainerPort: 8080
-              HostPort: 8080
-              Protocol: tcp
+            - ContainerPort: 5383
+              HostPort: 5383
+              Protocol: udp
+            - ContainerPort: 5384
+              HostPort: 5384
+              Protocol: udp
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -131,7 +180,7 @@ Resources:
       Cpu: 512
       ExecutionRoleArn: !GetAtt ECSRole.Arn
       Family: !Sub ${ApplicationName}
-      Memory: 1024
+      Memory: 4096
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -157,12 +206,6 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: Allow
-                Action:
-                  - s3:*
-                Resource:
-                  - !Sub "arn:aws:s3:::${OutpostBucketName}"
-                  - !Sub "arn:aws:s3:::${OutpostBucketName}/*"
               - Sid: VisualEditor0
                 Effect: Allow
                 Action:
@@ -243,3 +286,7 @@ Outputs:
     Value: !GetAtt Repository.RepositoryUri
     Export:
       Name: !Sub ${ApplicationName}-${Environment}-EcrRepositoryUri
+  EcrRepositoryHealthCheckUri:
+    Value: !GetAtt RepositoryHealthCheck.RepositoryUri
+    Export:
+      Name: !Sub ${ApplicationName}-${Environment}-EcrRepositoryHealthCheckUri

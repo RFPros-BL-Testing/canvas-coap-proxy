@@ -21,68 +21,73 @@ Parameters:
     Type: String
 
 Resources:
-  NoIngressSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: "no-ingress-sg"
-      GroupDescription: "Security group with no ingress rule"
-      VpcId: !Ref VpcId
+  # NoIngressSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupName: "no-ingress-sg"
+  #     GroupDescription: "Security group with no ingress rule"
+  #     VpcId: !Ref VpcId
 
-  PublicSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: !Sub public-ingress-sg-${Environment}
-      GroupDescription: "Security group allowing ingress from anywhere"
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - FromPort: 5683
-          CidrIp: 0.0.0.0/0
-          Description: CoAP
-          IpProtocol: UDP
-          ToPort: 5683
+  # PublicNlbSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupName: !Sub public-ingress-sg-${Environment}
+  #     GroupDescription: "Security group allowing CoAP ingress from anywhere"
+  #     VpcId: !Ref VpcId
+  #     SecurityGroupIngress:
+  #       - FromPort: 5683
+  #         CidrIp: 0.0.0.0/0
+  #         Description: CoAP
+  #         IpProtocol: UDP
+  #         ToPort: 5683
+  #       - FromPort: 5684
+  #         CidrIp: 0.0.0.0/0
+  #         Description: CoAPs
+  #         IpProtocol: UDP
+  #         ToPort: 5684
 
-  PublicHttpsSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: !Sub public-https-ingress-sg-${Environment}
-      GroupDescription: "Security group allowing ingress from anywhere"
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - FromPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: HTTPS
-          IpProtocol: TCP
-          ToPort: 443
+  # PublicHttpsSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupName: !Sub public-https-ingress-sg-${Environment}
+  #     GroupDescription: "Security group allowing ingress from anywhere"
+  #     VpcId: !Ref VpcId
+  #     SecurityGroupIngress:
+  #       - FromPort: 443
+  #         CidrIp: 0.0.0.0/0
+  #         Description: HTTPS
+  #         IpProtocol: TCP
+  #         ToPort: 443
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 30
+      # HealthCheckIntervalSeconds: 30
       HealthCheckPath: /health
       HealthCheckPort: 8080
       HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 10
-      HealthyThresholdCount: 3
-      UnhealthyThresholdCount: 3
-      Matcher:
-        HttpCode: 200
-      Port: 8080
-      Protocol: HTTP
+      # HealthCheckTimeoutSeconds: 10
+      # HealthyThresholdCount: 3
+      # UnhealthyThresholdCount: 3
+      # Matcher:
+      #   HttpCode: 200
+      Port: 5684
+      Protocol: UDP
       TargetType: ip
       VpcId: !Ref VpcId
 
-  ApplicationLoadBalancer:
+  NetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       IpAddressType: ipv4
       Scheme: internet-facing
-      SecurityGroups:
-        - !Ref PublicHttpsSecurityGroup
+      # SecurityGroups:
+      #   - !Ref PublicNlbSecurityGroup
       Subnets:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
-      Type: application
+      Type: network
 
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -91,11 +96,11 @@ Resources:
         - Order: 1
           TargetGroupArn: !Ref TargetGroup
           Type: forward
-      LoadBalancerArn: !Ref ApplicationLoadBalancer
-      Port: 443
-      Certificates:
-        - CertificateArn: !Ref AcmCertificateArn
-      Protocol: HTTPS
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: 5684
+      # Certificates:
+      #   - CertificateArn: !Ref AcmCertificateArn
+      Protocol: UDP
 
   # Route53 record pointing to load balancer
   RecordSet:
@@ -103,30 +108,30 @@ Resources:
     Properties:
       AliasTarget:
         HostedZoneId:
-          Fn::GetAtt: ["ApplicationLoadBalancer", "CanonicalHostedZoneID"]
+          Fn::GetAtt: ["NetworkLoadBalancer", "CanonicalHostedZoneID"]
         DNSName:
-          Fn::GetAtt: ["ApplicationLoadBalancer", "DNSName"]
+          Fn::GetAtt: ["NetworkLoadBalancer", "DNSName"]
         EvaluateTargetHealth: false
       HostedZoneId: !Ref HostedZoneId
       Name: !Sub ${ApplicationName}-${Environment}.${SslDomainName}
       Type: A
 
 Outputs:
-  PublicSecurityGroup:
-    Value: !Ref PublicHttpsSecurityGroup
-    Export:
-      Name: !Sub ${ApplicationName}-${Environment}-PublicSecurityGroup
+  # PublicNlbSecurityGroup:
+  #   Value: !Ref PublicNlbSecurityGroup
+  #   Export:
+  #     Name: !Sub ${ApplicationName}-${Environment}-PublicNlbSecurityGroup
 
-  PublicHttpsSecurityGroup:
-    Value: !Ref PublicHttpsSecurityGroup
-    Export:
-      Name: !Sub ${ApplicationName}-${Environment}-PublicHttpsSecurityGroup
+  # PublicHttpsSecurityGroup:
+  #   Value: !Ref PublicHttpsSecurityGroup
+  #   Export:
+  #     Name: !Sub ${ApplicationName}-${Environment}-PublicHttpsSecurityGroup
 
-  NoIngressSecurityGroup:
-    Description: Security group with no ingress rule
-    Value: !Ref NoIngressSecurityGroup
-    Export:
-      Name: !Sub ${ApplicationName}-${Environment}-NoIngressSecurityGroup
+  # NoIngressSecurityGroup:
+  #   Description: Security group with no ingress rule
+  #   Value: !Ref NoIngressSecurityGroup
+  #   Export:
+  #     Name: !Sub ${ApplicationName}-${Environment}-NoIngressSecurityGroup
 
   TargetGroupArn:
     Value: !Ref TargetGroup

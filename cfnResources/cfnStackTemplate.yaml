@@ -17,8 +17,6 @@ Parameters:
     Type: String
   HostedZoneId:
     Type: String
-  OutpostBucketName:
-    Type: String
   SslDomainName:
     Type: String
   Stack:
@@ -108,7 +106,6 @@ Resources:
       Parameters:
         ApplicationName: !Sub ${ApplicationName}
         Environment: !Ref Environment
-        OutpostBucketName: !Ref OutpostBucketName
         ContainerName: !Sub ${ApplicationName}-${Environment}
       Tags:
         - Key: ResourceGroup

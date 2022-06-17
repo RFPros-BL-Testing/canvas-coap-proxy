@@ -1,0 +1,14 @@
+{
+  "name": "ccp-service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "health-check.js",
+  "directories": {
+    "doc": "doc"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fastify": "^3.29.0"
+  }
+}
