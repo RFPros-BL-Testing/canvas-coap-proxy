@@ -45,10 +45,16 @@ Resources:
     Properties:
       ClusterName: !Sub ${ApplicationName}-${Environment}
 
+  HealthCheckLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ApplicationName}-${Environment}-health-check-service
+      RetentionInDays: 7
+
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /ecs/${ApplicationName}-service-${Environment}
+      LogGroupName: !Sub /ecs/${ApplicationName}-${Environment}-service
       RetentionInDays: 7
 
   Repository:
@@ -129,6 +135,7 @@ Resources:
         #   ContainerPort: 8080
         #   TargetGroupArn:
         #     Fn::ImportValue: !Sub ${ApplicationName}-${Environment}-TargetGroupArn
+
   Task:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
@@ -138,7 +145,7 @@ Resources:
       ContainerDefinitions:
         - Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RepositoryHealthCheck}:latest
           Cpu: 0
-          Name: !Sub health-check-${Environment}
+          Name: !Sub ${ApplicationName}-health-check-${Environment}
           Essential: true
           Environment:
             - Name: Environment

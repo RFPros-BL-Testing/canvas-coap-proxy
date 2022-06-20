@@ -139,6 +139,8 @@ Resources:
           Fn::GetAtt: [EcsClusterStack, Outputs.ServiceName]
         EcrRepositoryUri:
           Fn::GetAtt: [EcsClusterStack, Outputs.EcrRepositoryUri]
+        EcrRepositoryHealthCheckUri:
+          Fn::GetAtt: [EcsClusterStack, Outputs.EcrRepositoryHealthCheckUri]
 
       Tags:
         - Key: ResourceGroup
