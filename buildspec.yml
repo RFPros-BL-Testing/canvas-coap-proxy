@@ -3,6 +3,7 @@ phases:
   install:
     runtime-versions:
       java: corretto11
+      nodejs: 14
     commands:
       # - yum install java-11-amazon-corretto-headless
       - PYTHON=python2 amazon-linux-extras install java-openjdk11
@@ -39,6 +40,7 @@ phases:
       - echo Build completed on `date`
 
       - cd health-check-root
+      - npm install
       - docker build -t $HealthCheckContainerName:latest --build-arg Environment .
       - docker tag $HealthCheckContainerName:latest $EcrRepositoryHealthCheckUri:latest
       - cd ..

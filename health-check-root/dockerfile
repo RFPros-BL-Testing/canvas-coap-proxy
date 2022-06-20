@@ -14,7 +14,7 @@ WORKDIR /usr/src/app
 
 # copy our application files
 COPY ./. .
-RUN npm install
+RUN ls
 
 ARG Environment
 ENV DEPLOYMENT=$Environment
