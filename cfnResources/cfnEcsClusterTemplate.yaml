@@ -15,17 +15,13 @@ Resources:
       GroupDescription: Security Group for CoAP Proxy Service Cluster
       GroupName: !Sub ${ApplicationName}-${Environment}-SecurityGroup
       SecurityGroupIngress:
-        - CidrIp: "0.0.0.0/0"
+        - CidrIp: "10.192.0.0/16"
           FromPort: 8080
           ToPort: 8080
           IpProtocol: tcp
-        - CidrIp: "10.192.0.0/16"
+        - CidrIp: "0.0.0.0/0"
           FromPort: 5684
           ToPort: 5684
-          IpProtocol: udp
-        - CidrIp: "10.192.0.0/16"
-          FromPort: 5683
-          ToPort: 5683
           IpProtocol: udp
       SecurityGroupEgress:
         - CidrIp: "0.0.0.0/0"
@@ -128,7 +124,7 @@ Resources:
       TaskDefinition: !Ref Task
       LoadBalancers:
         - ContainerName: !Ref ContainerName
-          ContainerPort: 5384
+          ContainerPort: 5684
           TargetGroupArn:
             Fn::ImportValue: !Sub ${ApplicationName}-${Environment}-TargetGroupArn
         # - ContainerName: !Sub health-check-${Environment}
@@ -172,11 +168,11 @@ Resources:
             - Name: AWSAccountId
               Value: !Ref AWS::AccountId
           PortMappings:
-            - ContainerPort: 5383
-              HostPort: 5383
+            - ContainerPort: 5683
+              HostPort: 5683
               Protocol: udp
-            - ContainerPort: 5384
-              HostPort: 5384
+            - ContainerPort: 5684
+              HostPort: 5684
               Protocol: udp
           LogConfiguration:
             LogDriver: awslogs
